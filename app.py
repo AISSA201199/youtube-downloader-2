@@ -614,10 +614,11 @@ def stream_direct():
     cookie_path = get_cookie_file()
 
     ydl_opts = {
-        'format': 'bestaudio/best' if audio_only else 'best[ext=mp4]/best',
+        'format': 'bestaudio/best' if audio_only else 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
         'quiet': True,
         'no_warnings': True,
         'noplaylist': True,
+        'http_chunk_size': 1048576,
     }
     
     if cookie_path:
@@ -632,9 +633,14 @@ def stream_direct():
             if not target_url and 'entries' in info:
                 target_url = info['entries'][0].get('url')
                 info = info['entries'][0]
+            
+            # Handle split stream fallback (if bestvideo+bestaudio is selected without ffmpeg merging)
+            if not target_url and 'requested_formats' in info:
+                # Fallback to the video stream to avoid crashing
+                target_url = info['requested_formats'][0].get('url')
 
         if not target_url:
-            return "Could not find direct download URL", 404
+            return "Could not find direct download URL or the format requested is unavailable for streaming without FFmpeg", 404
 
         title = info.get('title', 'download')
         ext = 'mp3' if audio_only else ('mp4' if info.get('ext') == 'mp4' else info.get('ext', 'mp4'))
