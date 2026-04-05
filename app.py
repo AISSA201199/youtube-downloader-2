@@ -22,6 +22,23 @@ import qrcode
 import yt_dlp
 from io import BytesIO
 import telegram_bot
+import tempfile
+
+# دالة لجلب الكوكيز ووضعها في ملف مؤقت يقرأه yt-dlp
+def get_cookie_file():
+    cookies_content = os.getenv('YOUTUBE_COOKIES')
+    if cookies_content:
+        # إنشاء ملف مؤقت في مجلد /tmp المسموح بالكتابة فيه في Vercel
+        temp_cookie = tempfile.NamedTemporaryFile(delete=False, mode='w', dir='/tmp', suffix='.txt')
+        temp_cookie.write(cookies_content)
+        temp_cookie.close()
+        return temp_cookie.name
+    
+    # Fallback to local cookies.txt if env variable is not set
+    if os.path.exists('cookies.txt'):
+        return 'cookies.txt'
+        
+    return None
 
 # ─── Settings ─────────────────────────────────────────────────────────
 
@@ -588,12 +605,16 @@ def stream_direct():
     if not url:
         return "URL is required", 400
 
+    cookie_path = get_cookie_file()
+
     ydl_opts = {
         'format': 'bestaudio/best' if audio_only else 'best[ext=mp4]/best',
         'quiet': True,
         'no_warnings': True,
-        'cookiefile': 'cookies.txt', # if available
     }
+    
+    if cookie_path:
+        ydl_opts['cookiefile'] = cookie_path
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -723,14 +744,16 @@ def api_check_subscriptions():
     new_videos = []
     for channel_url in channels:
         try:
+            cookie_path = get_cookie_file()
             ydl_opts = {
                 'quiet': True,
                 'no_warnings': True,
                 'extract_flat': True,
                 'playlist_items': '1-3',
                 'socket_timeout': 10,
-                'cookiefile': 'cookies.txt',
             }
+            if cookie_path:
+                ydl_opts['cookiefile'] = cookie_path
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(channel_url, download=False)
                 if info and 'entries' in info:
