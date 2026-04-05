@@ -45,7 +45,7 @@ def add_cors_headers(response):
     return response
 
 # Threading mode is required since Eventlet was removed to fix FFmpeg crashes
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading', transports=['polling'])
 
 DOWNLOAD_DIR = os.path.abspath('downloads')
 if not os.path.exists(DOWNLOAD_DIR):
@@ -575,6 +575,68 @@ def drive_upload():
     # For now, we return failure to avoid library import errors if not installed
     return jsonify({"success": False, "error": "Google Drive Library Not Installed on Server"}), 501
 
+@app.route('/api/stream_direct')
+def stream_direct():
+    """
+    Direct Memory Streaming endpoint for Vercel.
+    Bypasses the read-only disk and streams iteratively to avoid the 10-second timeout.
+    """
+    url = request.args.get('url')
+    format_id = request.args.get('format_id', 'best')
+    audio_only = request.args.get('audio_only') == 'true'
+
+    if not url:
+        return "URL is required", 400
+
+    ydl_opts = {
+        'format': 'bestaudio/best' if audio_only else 'best[ext=mp4]/best',
+        'quiet': True,
+        'no_warnings': True,
+        'cookiefile': 'cookies.txt', # if available
+    }
+
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            # Extract info but do not download to disk
+            info = ydl.extract_info(url, download=False)
+            target_url = info.get('url')
+            # Handle playlist fallback
+            if not target_url and 'entries' in info:
+                target_url = info['entries'][0].get('url')
+                info = info['entries'][0]
+
+        if not target_url:
+            return "Could not find direct download URL", 404
+
+        title = info.get('title', 'download')
+        ext = 'mp3' if audio_only else ('mp4' if info.get('ext') == 'mp4' else info.get('ext', 'mp4'))
+        safe_title = re.sub(r'[\\/*?:"<>|]', "", title)
+        filename = f"{safe_title}.{ext}"
+
+        # Import requests here to stream directly in memory
+        import requests
+        req = requests.get(target_url, stream=True)
+
+        def generate():
+            # Use BytesIO chunking for Memory Streaming
+            buffer = BytesIO()
+            for chunk in req.iter_content(chunk_size=1024 * 64): # 64KB chunks
+                if chunk:
+                    buffer.write(chunk)
+                    buffer.seek(0)
+                    yield buffer.read()
+                    buffer.seek(0)
+                    buffer.truncate(0)
+
+        response = Response(stream_with_context(generate()), content_type=req.headers.get('content-type', 'application/octet-stream'))
+        # Ensure it prompts download with correct filename
+        from urllib.parse import quote
+        response.headers['Content-Disposition'] = f"attachment; filename*=UTF-8''{quote(filename)}"
+        return response
+
+    except Exception as e:
+        logger.error(f"Error in memory streaming direct endpoint: {e}")
+        return f"Streaming error: {e}", 500
 
 # ─── Phase 3: Stealth Mode ──────────────────────────────────────────
 @app.route('/api/settings/rate-limit', methods=['POST'])

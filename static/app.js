@@ -817,6 +817,18 @@ async function startDL(audioOnly = false, enqueueOnly = false) {
         return toast('وقت الانتهاء يجب أن يكون أكبر من وقت البدء', 'err');
     }
 
+    if (!enqueueOnly) {
+        // Direct Memory Streaming Mode (Vercel Compatibility)
+        const params = new URLSearchParams({
+            url: S.videoInfo.url,
+            format_id: fid,
+            audio_only: audioOnly
+        });
+        toast('بدأ التحميل المباشر 🚀', 'ok');
+        window.location.href = `/api/stream_direct?${params.toString()}`;
+        return;
+    }
+
     try {
         const res = await fetch('/api/download', {
             method: 'POST',
@@ -840,12 +852,7 @@ async function startDL(audioOnly = false, enqueueOnly = false) {
         S.videoInfo = null;
         $('#videoPreview').classList.remove('visible');
         $('#downloadHint').style.display = '';
-        if (enqueueOnly) {
-            toast('تمت إضافته لقائمة الانتظار ⏳', 'info');
-        } else {
-            toast('بدأ التحميل 🚀', 'ok');
-            switchTab('queue');
-        }
+        toast('تمت إضافته لقائمة الانتظار ⏳', 'info');
     } catch (e) { toast(e.message, 'err'); }
 }
 
