@@ -617,6 +617,7 @@ def stream_direct():
         'format': 'bestaudio/best' if audio_only else 'best[ext=mp4]/best',
         'quiet': True,
         'no_warnings': True,
+        'noplaylist': True,
     }
     
     if cookie_path:
