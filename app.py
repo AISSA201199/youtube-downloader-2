@@ -729,6 +729,7 @@ def api_check_subscriptions():
                 'extract_flat': True,
                 'playlist_items': '1-3',
                 'socket_timeout': 10,
+                'cookiefile': 'cookies.txt',
             }
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(channel_url, download=False)

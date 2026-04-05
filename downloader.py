@@ -282,6 +282,7 @@ class DownloadManager:
                 'extract_flat': 'in_playlist',
                 'socket_timeout': 15,
                 'nocheckcertificate': True,
+                'cookiefile': 'cookies.txt',
             }
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -395,6 +396,7 @@ class DownloadManager:
             'extract_flat': True,
             'default_search': 'ytsearch',
             'socket_timeout': 15,
+            'cookiefile': 'cookies.txt',
         }
 
         search_query = f"ytsearch{max_results}:{query}"
@@ -500,6 +502,7 @@ class DownloadManager:
                 'no_warnings': True,
                 'concurrent_fragment_downloads': self.get_setting('max_threads', 4),
                 'windowsfilenames': True,
+                'cookiefile': 'cookies.txt',
             }
 
             # Stealth mode: rate limiting
