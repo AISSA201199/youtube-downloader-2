@@ -24,19 +24,25 @@ from io import BytesIO
 import telegram_bot
 import tempfile
 
-# دالة لجلب الكوكيز ووضعها في ملف مؤقت يقرأه yt-dlp
+# دالة لجلب الكوكيز ووضعها في ملف مؤقت يقرأه yt-dlp في بيئة Serverless
 def get_cookie_file():
     cookies_content = os.getenv('YOUTUBE_COOKIES')
-    if cookies_content:
-        # إنشاء ملف مؤقت في مجلد /tmp المسموح بالكتابة فيه في Vercel
-        temp_cookie = tempfile.NamedTemporaryFile(delete=False, mode='w', dir='/tmp', suffix='.txt')
-        temp_cookie.write(cookies_content)
-        temp_cookie.close()
-        return temp_cookie.name
     
-    # Fallback to local cookies.txt if env variable is not set
-    if os.path.exists('cookies.txt'):
-        return 'cookies.txt'
+    # إذا لم يكن هناك متغير بيئة، اقرأ من الملف المحلي لتجنب خطأ Read-only عند كتابة المخرجات
+    if not cookies_content and os.path.exists('cookies.txt'):
+        try:
+            with open('cookies.txt', 'r') as f:
+                cookies_content = f.read()
+        except Exception:
+            pass
+
+    if cookies_content:
+        # إنشاء ملف مؤقت في مجلد /tmp المسموح بالكتابة فيه بـ Vercel
+        import tempfile
+        fd, path = tempfile.mkstemp(suffix=".txt", dir="/tmp")
+        with os.fdopen(fd, 'w') as tmp:
+            tmp.write(cookies_content)
+        return path
         
     return None
 

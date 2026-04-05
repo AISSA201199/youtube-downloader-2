@@ -14,9 +14,32 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 import sqlite3
 import json
+import tempfile
 
 import yt_dlp
 from cachetools import TTLCache, cached
+
+# دالة لجلب الكوكيز ووضعها في ملف مؤقت يقرأه yt-dlp في بيئة Serverless
+def get_cookie_file():
+    cookies_content = os.getenv('YOUTUBE_COOKIES')
+    
+    # إذا لم يكن هناك متغير بيئة، اقرأ من الملف المحلي لتجنب خطأ Read-only عند كتابة المخرجات
+    if not cookies_content and os.path.exists('cookies.txt'):
+        try:
+            with open('cookies.txt', 'r') as f:
+                cookies_content = f.read()
+        except Exception:
+            pass
+
+    if cookies_content:
+        # إنشاء ملف مؤقت في مجلد /tmp المسموح بالكتابة فيه بـ Vercel
+        import tempfile
+        fd, path = tempfile.mkstemp(suffix=".txt", dir="/tmp")
+        with os.fdopen(fd, 'w') as tmp:
+            tmp.write(cookies_content)
+        return path
+        
+    return None
 
 
 # ─── Platform Detection ───────────────────────────────────────────────
@@ -276,14 +299,16 @@ class DownloadManager:
 
     def get_video_info(self, url: str) -> dict:
         try:
+            cookie_path = get_cookie_file()
             ydl_opts = {
                 'quiet': True,
                 'no_warnings': True,
                 'extract_flat': 'in_playlist',
                 'socket_timeout': 15,
                 'nocheckcertificate': True,
-                'cookiefile': 'cookies.txt',
             }
+            if cookie_path:
+                ydl_opts['cookiefile'] = cookie_path
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
@@ -390,14 +415,16 @@ class DownloadManager:
         return formats[:12]
 
     def search_youtube(self, query: str, max_results: int = 15) -> list:
+        cookie_path = get_cookie_file()
         ydl_opts = {
             'quiet': True,
             'no_warnings': True,
             'extract_flat': True,
             'default_search': 'ytsearch',
             'socket_timeout': 15,
-            'cookiefile': 'cookies.txt',
         }
+        if cookie_path:
+            ydl_opts['cookiefile'] = cookie_path
 
         search_query = f"ytsearch{max_results}:{query}"
 
@@ -495,6 +522,7 @@ class DownloadManager:
                     if self.categorize_mode == 'platform':
                         os.makedirs(os.path.join(self.download_dir, sub), exist_ok=True)
 
+            cookie_path = get_cookie_file()
             ydl_opts = {
                 'outtmpl': outtmpl,
                 'progress_hooks': [self._make_progress_hook(item)],
@@ -502,8 +530,9 @@ class DownloadManager:
                 'no_warnings': True,
                 'concurrent_fragment_downloads': self.get_setting('max_threads', 4),
                 'windowsfilenames': True,
-                'cookiefile': 'cookies.txt',
             }
+            if cookie_path:
+                ydl_opts['cookiefile'] = cookie_path
 
             # Stealth mode: rate limiting
             if self.rate_limit:
