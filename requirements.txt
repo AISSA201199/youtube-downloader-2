@@ -1,0 +1,7 @@
+flask==3.1.0
+flask-socketio==5.5.1
+yt-dlp>=2025.3.12
+cachetools==5.3.3
+qrcode[pil]>=7.4
+pyTelegramBotAPI>=4.15.0
+schedule>=1.2.0

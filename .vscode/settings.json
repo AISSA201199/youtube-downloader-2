@@ -1,0 +1,14 @@
+{
+    "python.defaultInterpreterPath": "C:\\Users\\gg997\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+    "python.analysis.typeCheckingMode": "off",
+    "python.analysis.diagnosticSeverityOverrides": {
+        "reportMissingImports": "none",
+        "reportMissingModuleSource": "none",
+        "reportGeneralTypeIssues": "none",
+        "reportOptionalMemberAccess": "none",
+        "reportAttributeAccessIssue": "none"
+    },
+    "python.languageServer": "Pylance",
+    "css.lint.vendorPrefix": "ignore",
+    "css.lint.unknownProperties": "ignore"
+}

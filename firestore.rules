@@ -1,0 +1,21 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAdmin() {
+      return request.auth != null && (request.auth.token.email == 'tfggg981@gmail.com' || request.auth.token.email == 'gg9974347@gmail.com');
+    }
+
+    match /users/{userId}/{all=**} {
+      allow read, write: if request.auth != null && (request.auth.uid == userId || isAdmin());
+    }
+
+    match /shared_collections/{code} {
+      allow read: if true;
+      allow create, update, delete: if request.auth != null; // Temporarily allow anyone logged in to fix sync
+    }
+
+    match /trending/{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

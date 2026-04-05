@@ -1,0 +1,24 @@
+[
+  {
+    "id": 1,
+    "priority": 1,
+    "action": {
+      "type": "allow"
+    },
+    "condition": {
+      "urlFilter": "*.m3u8*",
+      "resourceTypes": ["xmlhttprequest", "media", "other"]
+    }
+  },
+  {
+    "id": 2,
+    "priority": 1,
+    "action": {
+      "type": "allow"
+    },
+    "condition": {
+      "urlFilter": "*.mp4*",
+      "resourceTypes": ["xmlhttprequest", "media", "other"]
+    }
+  }
+]

@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "المحمل الأسطوري الذهبي",
+  "version": "1.0",
+  "description": "أقوى إضافة لتحميل الفيديوهات من يوتيوب، تيك توك، واصطياد روابط البث المباشر.",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "webRequest",
+    "declarativeNetRequest",
+    "notifications"
+  ],
+  "host_permissions": [
+    "http://localhost:5000/*",
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "128": "icon.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.youtube.com/*", "*://*.tiktok.com/*", "*://*.instagram.com/*"],
+      "js": ["content.js"],
+      "css": ["content.css"]
+    }
+  ],
+  "icons": {
+    "128": "icon.png"
+  },
+  "declarative_net_request": {
+    "rule_resources": [{
+      "id": "ruleset_1",
+      "enabled": true,
+      "path": "rules.json"
+    }]
+  }
+}
