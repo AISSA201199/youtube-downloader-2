@@ -24,8 +24,9 @@ from io import BytesIO
 import telegram_bot
 import tempfile
 
-# دالة لجلب الكوكيز ووضعها في ملف مؤقت يقرأه yt-dlp في بيئة Serverless
-def get_cookie_file():
+# دالة لجلب إعدادات yt-dlp المتوافقة مع Vercel
+def get_ydl_opts(audio_only=False, playlist_items=None):
+    # 1. جلب الكوكيز من Environment Variables في Vercel
     cookies_content = os.getenv('YOUTUBE_COOKIES')
     
     # إذا لم يكن هناك متغير بيئة، اقرأ من الملف المحلي لتجنب خطأ Read-only عند كتابة المخرجات
@@ -36,15 +37,33 @@ def get_cookie_file():
         except Exception:
             pass
 
+    cookie_path = None
     if cookies_content:
-        # إنشاء ملف مؤقت في مجلد /tmp المسموح بالكتابة فيه بـ Vercel
+        # إنشاء ملف مؤقت للكوكيز لأن Vercel يمنع الكتابة في المجلد الرئيسي
         import tempfile
         fd, path = tempfile.mkstemp(suffix=".txt", dir="/tmp")
         with os.fdopen(fd, 'w') as tmp:
             tmp.write(cookies_content)
-        return path
+        cookie_path = path
         
-    return None
+    # 2. إعدادات yt-dlp الذكية لـ Vercel (بدون الحاجة لـ FFmpeg)
+    opts = {
+        'format': 'bestaudio/best' if audio_only else 'best[ext=mp4][vcodec^=avc1][acodec^=mp4a]/best[ext=mp4]/best',
+        'quiet': True,
+        'no_warnings': True,
+        'noplaylist': True,
+        'http_chunk_size': 1048576, # تحميل الفيديو على أجزاء لتفادي الـ Timeout
+        'nocheckcertificate': True,
+    }
+    
+    if playlist_items:
+        opts['playlist_items'] = playlist_items
+        opts['extract_flat'] = True
+        
+    if cookie_path:
+        opts['cookiefile'] = cookie_path
+        
+    return opts
 
 # ─── Settings ─────────────────────────────────────────────────────────
 
@@ -611,18 +630,7 @@ def stream_direct():
     if not url:
         return "URL is required", 400
 
-    cookie_path = get_cookie_file()
-
-    ydl_opts = {
-        'format': 'bestaudio/best' if audio_only else 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-        'quiet': True,
-        'no_warnings': True,
-        'noplaylist': True,
-        'http_chunk_size': 1048576,
-    }
-    
-    if cookie_path:
-        ydl_opts['cookiefile'] = cookie_path
+    ydl_opts = get_ydl_opts(audio_only=audio_only)
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -757,16 +765,8 @@ def api_check_subscriptions():
     new_videos = []
     for channel_url in channels:
         try:
-            cookie_path = get_cookie_file()
-            ydl_opts = {
-                'quiet': True,
-                'no_warnings': True,
-                'extract_flat': True,
-                'playlist_items': '1-3',
-                'socket_timeout': 10,
-            }
-            if cookie_path:
-                ydl_opts['cookiefile'] = cookie_path
+            ydl_opts = get_ydl_opts(playlist_items='1-3')
+            ydl_opts['socket_timeout'] = 10
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(channel_url, download=False)
                 if info and 'entries' in info:

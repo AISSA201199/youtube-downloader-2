@@ -19,8 +19,9 @@ import tempfile
 import yt_dlp
 from cachetools import TTLCache, cached
 
-# دالة لجلب الكوكيز ووضعها في ملف مؤقت يقرأه yt-dlp في بيئة Serverless
-def get_cookie_file():
+# دالة لجلب إعدادات yt-dlp المتوافقة مع Vercel
+def get_ydl_opts(audio_only=False, is_search=False, is_playlist=False):
+    # 1. جلب الكوكيز من Environment Variables في Vercel
     cookies_content = os.getenv('YOUTUBE_COOKIES')
     
     # إذا لم يكن هناك متغير بيئة، اقرأ من الملف المحلي لتجنب خطأ Read-only عند كتابة المخرجات
@@ -31,15 +32,31 @@ def get_cookie_file():
         except Exception:
             pass
 
+    cookie_path = None
     if cookies_content:
         # إنشاء ملف مؤقت في مجلد /tmp المسموح بالكتابة فيه بـ Vercel
         import tempfile
         fd, path = tempfile.mkstemp(suffix=".txt", dir="/tmp")
         with os.fdopen(fd, 'w') as tmp:
             tmp.write(cookies_content)
-        return path
+        cookie_path = path
         
-    return None
+    # 2. إعدادات yt-dlp الذكية لـ Vercel (بدون الحاجة لـ FFmpeg)
+    opts = {
+        'quiet': True,
+        'no_warnings': True,
+        'nocheckcertificate': True,
+        'http_chunk_size': 1048576,
+    }
+    
+    if not is_search and not is_playlist:
+        opts['format'] = 'bestaudio/best' if audio_only else 'best[ext=mp4][vcodec^=avc1][acodec^=mp4a]/best[ext=mp4]/best'
+        opts['noplaylist'] = True
+        
+    if cookie_path:
+        opts['cookiefile'] = cookie_path
+        
+    return opts
 
 
 # ─── Platform Detection ───────────────────────────────────────────────
@@ -299,16 +316,9 @@ class DownloadManager:
 
     def get_video_info(self, url: str) -> dict:
         try:
-            cookie_path = get_cookie_file()
-            ydl_opts = {
-                'quiet': True,
-                'no_warnings': True,
-                'extract_flat': 'in_playlist',
-                'socket_timeout': 15,
-                'nocheckcertificate': True,
-            }
-            if cookie_path:
-                ydl_opts['cookiefile'] = cookie_path
+            ydl_opts = get_ydl_opts(is_playlist=True)
+            ydl_opts['extract_flat'] = 'in_playlist'
+            ydl_opts['socket_timeout'] = 15
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
@@ -415,16 +425,10 @@ class DownloadManager:
         return formats[:12]
 
     def search_youtube(self, query: str, max_results: int = 15) -> list:
-        cookie_path = get_cookie_file()
-        ydl_opts = {
-            'quiet': True,
-            'no_warnings': True,
-            'extract_flat': True,
-            'default_search': 'ytsearch',
-            'socket_timeout': 15,
-        }
-        if cookie_path:
-            ydl_opts['cookiefile'] = cookie_path
+        ydl_opts = get_ydl_opts(is_search=True)
+        ydl_opts['extract_flat'] = True
+        ydl_opts['default_search'] = 'ytsearch'
+        ydl_opts['socket_timeout'] = 15
 
         search_query = f"ytsearch{max_results}:{query}"
 
@@ -522,17 +526,11 @@ class DownloadManager:
                     if self.categorize_mode == 'platform':
                         os.makedirs(os.path.join(self.download_dir, sub), exist_ok=True)
 
-            cookie_path = get_cookie_file()
-            ydl_opts = {
-                'outtmpl': outtmpl,
-                'progress_hooks': [self._make_progress_hook(item)],
-                'quiet': True,
-                'no_warnings': True,
-                'concurrent_fragment_downloads': self.get_setting('max_threads', 4),
-                'windowsfilenames': True,
-            }
-            if cookie_path:
-                ydl_opts['cookiefile'] = cookie_path
+            ydl_opts = get_ydl_opts(audio_only=item.audio_only)
+            ydl_opts['outtmpl'] = outtmpl
+            ydl_opts['progress_hooks'] = [self._make_progress_hook(item)]
+            ydl_opts['concurrent_fragment_downloads'] = self.get_setting('max_threads', 4)
+            ydl_opts['windowsfilenames'] = True
 
             # Stealth mode: rate limiting
             if self.rate_limit:
