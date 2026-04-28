@@ -10,14 +10,15 @@ import sys
 import subprocess
 import platform
 import logging
+import json
 from datetime import datetime, timedelta
 
 import mimetypes
 import re
-from flask import Flask, render_template, request, jsonify, send_from_directory, Response, abort, send_file
+from flask import Flask, render_template, request, jsonify, send_from_directory, Response, abort, send_file, stream_with_context
 from flask_socketio import SocketIO
 from cachetools import TTLCache, cached
-from downloader import DownloadManager, detect_platform
+from downloader import DownloadManager, detect_platform, get_ydl_opts
 import qrcode
 import yt_dlp
 from io import BytesIO
